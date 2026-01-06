@@ -62,15 +62,19 @@ st.subheader(f"Übersicht für {user_name}")
 
 # Filter auf den aktuellen Nutzer
 if not df.empty:
-    user_df = df[df["Nutzer"] == user_name].copy()
+    # Sicherstellen, dass die Spalte existiert, sonst leeren DF anzeigen
+    if "Nutzer" in df.columns:
+        user_df = df[df["Nutzer"] == user_name].copy()
 
-    if not user_df.empty:
-        total_chf = user_df["Betrag_CHF"].sum()
-        st.metric("Gesamtkosten", f"CHF {total_chf:,.2f}")
-        
-        # Tabelle anzeigen
-        st.dataframe(user_df.sort_values(by="Datum", ascending=False), use_container_width=True)
+        if not user_df.empty:
+            total_chf = user_df["Betrag_CHF"].sum()
+            st.metric("Gesamtkosten", f"CHF {total_chf:,.2f}")
+            
+            # Tabelle anzeigen
+            st.dataframe(user_df.sort_values(by="Datum", ascending=False), use_container_width=True)
+        else:
+            st.info("Noch keine Einträge für dich gefunden.")
     else:
-        st.info("Noch keine Einträge für dich gefunden.")
+        st.warning("Die Spalte 'Nutzer' wurde im Sheet nicht gefunden.")
 else:
     st.info("Die Datenbank ist noch leer.")
