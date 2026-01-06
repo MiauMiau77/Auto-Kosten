@@ -2,25 +2,32 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import datetime
+import plotly.express as px
 
 # SEITEN-KONFIGURATION
-st.set_page_config(page_title="Auto-Kosten Tracker", page_icon="🚗")
+st.set_page_config(page_title="Auto-Kosten Tracker", page_icon="🚗", layout="wide")
 
 st.title("🚗 Fahrzeug-Kosten Tracker (CHF)")
-st.markdown("Erfasse deine Ausgaben und speichere sie direkt in Google Sheets.")
 
-# Verbindung zu Google Sheets definieren
+# Verbindung zu Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# NUTZER-EINSTELLUNG
+# NUTZER-EINSTELLUNG (Sidebar)
 user_name = st.sidebar.text_input("Dein Name / Kürzel", value="Gast")
 
-# Daten aus Google Sheets laden (ttl=0 für Echtzeit-Aktualisierung)
+# Daten aus Google Sheets laden
 try:
     df = conn.read(worksheet="Daten", ttl=0)
 except Exception:
-    st.error("Konnte keine Daten laden. Prüfe, ob das Tabellenblatt 'Daten' heisst.")
+    st.error("Konnte keine Daten laden. Prüfe dein Google Sheet.")
     df = pd.DataFrame(columns=["Nutzer", "Datum", "Fahrzeug", "Kategorie", "Betrag_CHF", "Notiz"])
+
+# FAHRZEUG-LISTE FÜR DROPDOWN VORBEREITEN
+if not df.empty and "Fahrzeug" in df.columns:
+    # Wir nehmen alle eindeutigen Fahrzeugnamen aus dem Sheet
+    vorhandene_autos = sorted(df["Fahrzeug"].dropna().unique().tolist())
+else:
+    vorhandene_autos = []
 
 # EINGABE-FORMULAR
 with st.form("ausgabe_form"):
@@ -29,8 +36,15 @@ with st.form("ausgabe_form"):
     
     with col1:
         datum = st.date_input("Datum", datetime.date.today())
-        fahrzeug = st.text_input("Fahrzeug", placeholder="z.B. Audi A3")
-    
+        
+        # Fahrzeug-Wahl via Dropdown
+        auto_wahl = st.selectbox("Fahrzeug wählen", ["+ Neues Fahrzeug hinzufügen"] + vorhandene_autos)
+        
+        if auto_wahl == "+ Neues Fahrzeug hinzufügen":
+            fahrzeug = st.text_input("Name des neuen Fahrzeugs", placeholder="z.B. Tesla Model 3")
+        else:
+            fahrzeug = auto_wahl
+            
     with col2:
         kat = st.selectbox("Kategorie", ["Tanken", "Service/Reparatur", "Versicherung", "Busse", "Parkgebühren", "Sonstiges"])
         betrag = st.number_input("Betrag in CHF", min_value=0.0, step=0.05, format="%.2f")
@@ -39,42 +53,16 @@ with st.form("ausgabe_form"):
     submit = st.form_submit_button("Speichern")
 
     if submit:
-        # Neuen Datensatz erstellen
-        new_data = pd.DataFrame([{
-            "Nutzer": user_name,
-            "Datum": str(datum),
-            "Fahrzeug": fahrzeug,
-            "Kategorie": kat,
-            "Betrag_CHF": betrag,
-            "Notiz": notiz
-        }])
-        
-        # Bestehende Daten mit neuen Daten zusammenführen
-        updated_df = pd.concat([df, new_data], ignore_index=True)
-        
-        # Zurück in Google Sheets schreiben
-        conn.update(worksheet="Daten", data=updated_df)
-        st.success("Erfolgreich gespeichert!")
-        st.rerun()
-
-# AUSWERTUNG
-st.subheader(f"Übersicht für {user_name}")
-
-# Filter auf den aktuellen Nutzer
-if not df.empty:
-    # Sicherstellen, dass die Spalte existiert, sonst leeren DF anzeigen
-    if "Nutzer" in df.columns:
-        user_df = df[df["Nutzer"] == user_name].copy()
-
-        if not user_df.empty:
-            total_chf = user_df["Betrag_CHF"].sum()
-            st.metric("Gesamtkosten", f"CHF {total_chf:,.2f}")
-            
-            # Tabelle anzeigen
-            st.dataframe(user_df.sort_values(by="Datum", ascending=False), use_container_width=True)
+        if fahrzeug.strip() == "":
+            st.error("Bitte gib einen Fahrzeugnamen ein!")
         else:
-            st.info("Noch keine Einträge für dich gefunden.")
-    else:
-        st.warning("Die Spalte 'Nutzer' wurde im Sheet nicht gefunden.")
-else:
-    st.info("Die Datenbank ist noch leer.")
+            new_data = pd.DataFrame([{
+                "Nutzer": user_name,
+                "Datum": str(datum),
+                "Fahrzeug": fahrzeug,
+                "Kategorie": kat,
+                "Betrag_CHF": betrag,
+                "Notiz": notiz
+            }])
+            
+            updated_df = pd.concat([df, new_data
