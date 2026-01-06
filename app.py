@@ -54,8 +54,6 @@ with st.form("ausgabe_form"):
         st.success("Erfolgreich gespeichert!")
         st.rerun()
 
----
-
 # --- AUSWERTUNG ---
 st.subheader(f"Übersicht für {user_name}")
 
@@ -69,4 +67,5 @@ if not user_df.empty:
     # Tabelle anzeigen
     st.dataframe(user_df.sort_values(by="Datum", ascending=False), use_container_width=True)
 else:
+
     st.info("Noch keine Einträge für dich gefunden.")
