@@ -24,7 +24,6 @@ except Exception:
 
 # FAHRZEUG-LISTE FÜR DROPDOWN VORBEREITEN
 if not df.empty and "Fahrzeug" in df.columns:
-    # Wir nehmen alle eindeutigen Fahrzeugnamen aus dem Sheet
     vorhandene_autos = sorted(df["Fahrzeug"].dropna().unique().tolist())
 else:
     vorhandene_autos = []
@@ -36,8 +35,6 @@ with st.form("ausgabe_form"):
     
     with col1:
         datum = st.date_input("Datum", datetime.date.today())
-        
-        # Fahrzeug-Wahl via Dropdown
         auto_wahl = st.selectbox("Fahrzeug wählen", ["+ Neues Fahrzeug hinzufügen"] + vorhandene_autos)
         
         if auto_wahl == "+ Neues Fahrzeug hinzufügen":
@@ -56,6 +53,7 @@ with st.form("ausgabe_form"):
         if fahrzeug.strip() == "":
             st.error("Bitte gib einen Fahrzeugnamen ein!")
         else:
+            # Neuen Datensatz erstellen
             new_data = pd.DataFrame([{
                 "Nutzer": user_name,
                 "Datum": str(datum),
@@ -65,4 +63,41 @@ with st.form("ausgabe_form"):
                 "Notiz": notiz
             }])
             
-            updated_df = pd.concat([df, new_data
+            # KORREKTUR DER ZEILE 68: Klammern sauber schliessen
+            updated_df = pd.concat([df, new_data], ignore_index=True)
+            
+            # Zurück in Google Sheets schreiben
+            conn.update(worksheet="Daten", data=updated_df)
+            st.success(f"Eintrag für {fahrzeug} gespeichert!")
+            st.rerun()
+
+# AUSWERTUNG & DIAGRAMME
+if not df.empty and "Nutzer" in df.columns:
+    user_df = df[df["Nutzer"] == user_name].copy()
+
+    if not user_df.empty:
+        st.divider()
+        st.subheader(f"Statistiken für {user_name}")
+        
+        col_m1, col_m2 = st.columns(2)
+        total_chf = user_df["Betrag_CHF"].sum()
+        col_m1.metric("Gesamtkosten", f"CHF {total_chf:,.2f}")
+        col_m2.metric("Anzahl Einträge", len(user_df))
+
+        col_chart1, col_chart2 = st.columns(2)
+        
+        with col_chart1:
+            fig_pie = px.pie(user_df, values='Betrag_CHF', names='Kategorie', 
+                             title='Kosten nach Kategorie',
+                             color_discrete_sequence=px.colors.qualitative.Pastel)
+            st.plotly_chart(fig_pie, use_container_width=True)
+            
+        with col_chart2:
+            fig_bar = px.bar(user_df.groupby("Fahrzeug")["Betrag_CHF"].sum().reset_index(), 
+                             x='Fahrzeug', y='Betrag_CHF', title='Kosten pro Fahrzeug')
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+        st.subheader("Deine letzten Einträge")
+        st.dataframe(user_df.sort_values(by="Datum", ascending=False), use_container_width=True)
+    else:
+        st.info(f"Hallo {user_name}! Du hast noch keine Einträge erfasst.")
